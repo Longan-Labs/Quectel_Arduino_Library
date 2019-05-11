@@ -13,14 +13,6 @@ Quectel_LTE::Quectel_LTE() : _AtSerial(&Serial1)
   _apnUser[0] = 0;
   _apnPasswd[0] = 0;
   _operator[0] = 0;
-  _longitude = 0;
-  _latitude = 0;        
-  _ref_longitude = 22.584322;
-  _ref_latitude = 113.966678;
-  _str_longitude[0] = 0;
-  _str_latitude[0] = 0;
-  _North_or_South[0] = 0;
-  _West_or_East[0] = 0;
 }
 
 void Quectel_LTE::initialize()
@@ -58,7 +50,7 @@ bool Quectel_LTE::isAlive(uint32_t timeout)
         Log(".");
     }    
     
-    return false;
+    return RET_ERR;
 }
 
 /** 
@@ -595,250 +587,41 @@ uint32_t Quectel_LTE::httpGet(const char *url, char *data, uint16_t dataSize, ui
 //   return contentSize;
 // }
 
-bool Quectel_LTE::close_GNSS()
-{
-  int errCounts = 0;
 
-  while(!_AtSerial.WriteCommandAndWaitForResponse("AT+QGNSSC?\n\r", "+QGNSSC: 0", CMD, 2000)) {
-      errCounts ++;
-      if(errCounts > 100){
-        return false;
-      }
-      _AtSerial.WriteCommandAndWaitForResponse("AT+QGNSSC=0\n\r", "OK", CMD, 2000);
-      delay(1000);
-  }
-
-  return  RET_OK;
-}
-
-/**
- * Aquire GPS sentence
- */
-bool Quectel_LTE::dataFlowMode(void)
-{
-    // Make sure that "#define UART_DEBUG" is uncomment.
-    _AtSerial.WriteCommand("AT+QGPSLOC?\r\n");
-    return _AtSerial.WaitForResponse("OK", CMD, 2000, DEFAULT_INCHAR_TIMEOUT);
-}
-
-bool Quectel_LTE::open_GNSS(void)
-{
-  int errCounts = 0;
-
-  while(!_AtSerial.WriteCommandAndWaitForResponse("AT+QGPS?\r\n", "+QGPS: 1", CMD, 2000)){
-      errCounts ++;
-      if(errCounts > 5){
-        return false;
-      }
-      _AtSerial.WriteCommandAndWaitForResponse("AT+QGPS=1\r\n", "OK", CMD, 2000);
-      delay(1000);
-  }
-
-  return  RET_OK;
-}
-
-/** 
- * Get coordinate infomation
- */
-bool Quectel_LTE::getCoordinate(void)
-{
-  int tmp = 0;
-  char *p = NULL;
-  uint8_t str_len = 0;
-  char buffer[128];
-
-  _AtSerial.CleanBuffer(buffer, 128);
-  _AtSerial.WriteCommand("AT+QGPSLOC?\r\n");
-  if(!_AtSerial.ReadResponseUntil_EOL(buffer, 128, "\r\nOK", CMD, 2000)) return false; 
-  // +QGPSLOC: 084757.700,2235.0272N,11357.9730E,1.6,40.0,3,171.43,0.0,0.0,290617,10    
-  if(NULL == (p = strstr(buffer, "+QGPSLOC:"))) return false;  
-  p += 10;      
-  p = strtok(buffer, ","); // time
-  p = strtok(NULL, ",");  // _latitude
-  sprintf(_str_latitude, "%s", p);
-  _latitude = strtod(p, NULL);
-  tmp = (int)(_latitude / 100);
-  _latitude = (double)(tmp + (_latitude - tmp*100)/60.0);
-
-  // Get North and South status
-  str_len = strlen(p);
-  if ((*(p+str_len-1) != 'N') && (*(p+str_len-1) != 'S')){
-    _North_or_South[0] = '0';
-    _North_or_South[1] = '\0';
-  } else {
-    _North_or_South[0] = *(p+str_len-1);
-    _North_or_South[1] = '\0';
-  }
-
-  p = strtok(NULL, ",");  // _longitude
-  sprintf(_str_longitude, "%s", p);
-  _longitude = strtod(p, NULL);
-
-  // Get West and East status
-  str_len = strlen(p);
-  if ((*(p+str_len-1) != 'W') && (*(p+str_len-1) != 'E')){
-    _West_or_East[0] = '0';        
-    _West_or_East[1] = '\0';
-  } else {
-    _West_or_East[0] = *(p+str_len-1);
-    _West_or_East[1] = '\0';
-  }
-
-  tmp = (int)(_longitude / 100);
-  _longitude = (double)(tmp + (_longitude - tmp*100)/60.0);
-
-  // if(_North_or_South[0] == 'S'){
-  //     // _latitude = 0.0 - _latitude;
-  // } else if(_North_or_South[0] = 'N'){
-  //     _latitude = 0.0 - _latitude;
-  // }
-
-  // if(_West_or_East[0] == 'W'){
-  //     // _longitude = 0.0 - _longitude;
-  // } else if(_West_or_East[0] = 'E'){
-  //     _longitude = 0.0 - _longitude;
-  // }
-
-  doubleToString(_longitude, _latitude);
-
-  return  RET_OK;
-}
-
-/**
- * Convert double coordinate data to string
- */
-void Quectel_LTE::doubleToString(double _longitude, double _latitude)
-{
-  int u8_lon = (int)_longitude;
-  int u8_lat = (int)_latitude;
-  uint32_t u32_lon = (_longitude - u8_lon)*1000000;
-  uint32_t u32_lat = (_latitude - u8_lat)*1000000;
-
-  sprintf(_str_longitude, "%d.%lu", u8_lon, u32_lon);
-  sprintf(_str_latitude, "%d.%lu", u8_lat, u32_lat);
-}
-
-/**
- * Set outpu sentences in NMEA mode
-*/
-bool Quectel_LTE::enable_NMEA_mode()
-{
-  if(!_AtSerial.WriteCommandAndWaitForResponse("AT+QGPSCFG=\"nmeasrc\",1\r\n", "OK", CMD, 2000)){
-        return false;
-  }
-  return  RET_OK;
-}
-
-/**
- * Disable NMEA mode
-*/
-bool Quectel_LTE::disable_NMEA_mode()
-{
-  if(!_AtSerial.WriteCommandAndWaitForResponse("AT+QGPSCFG=\"nmeasrc\",0\r\n", "OK", CMD, 2000)){
-        return false;
-  }
-  return  RET_OK;
-}
-
-/**
- *  Request NMEA data and save the responce sentence
-*/
-bool Quectel_LTE::NMEA_read_and_save(const char *type, char *data)
-{
-  char rxBuf[192] = {'\0'};  
-  char *p = NULL;
-  uint16_t i = 0;
-
-  _AtSerial.CleanBuffer(rxBuf, sizeof(rxBuf)); 
-  _AtSerial.WriteCommand("AT+QGPSGNMEA=");
-  _AtSerial.WriteCommand("\"");
-  _AtSerial.WriteCommand(type);
-  _AtSerial.WriteCommand("\"\r\n");
-                                                                                                                                                                                          
-  _AtSerial.ReadResponseUntil(rxBuf, sizeof(rxBuf), STR_OK, CMD, 1000);  // Save response data
-  // Serial.print("##DEBUG _AtSerial.ReadResponseUntil: ");
-  // Serial.println(rxBuf);
-  if(NULL == (p = strstr(rxBuf, "+QGPSGNMEA:")))
+bool Quectel_LTE::gpsOn(void)
+{    
+  if(!_AtSerial.WriteCommandAndWaitForResponse("AT+QGPSCFG=\"nmeasrc\",1\r\n", "OK", CMD, 500)) return RET_ERR;
+  if(!_AtSerial.WriteCommandAndWaitForResponse("AT+QGPSCFG=\"gpsnmeatype\",1\r\n", "OK", CMD, 500)) return RET_ERR;
+  if(_AtSerial.WriteCommandAndWaitForResponse("AT+QGPS?\r\n", "+QGPS: 0\r\n\r\nOK", CMD, 500))
   {
-    return false;
+    if(!_AtSerial.WriteCommandAndWaitForResponse("AT+QGPS=1\r\n", "OK", CMD, 500)) return RET_ERR;
   }
-  p += 12;
-  while((*(p) != '\n') && (*(p) != '\0')) {  // If receive "+QGPSGNMEA:", than keep saving the NMEA sentence 
-    data[i++] = *(p++);
-  }
-  data[i] = '\0';
-  // Serial.print("##DEBUG data: ");
-  // Serial.println(data);
-  return  RET_OK;
-
-} 
-
-/**
- * Read NMEA data
-*/
-bool Quectel_LTE::read_NMEA(NMEA_type type, char *save_buff)
-{
-  switch(type){
-    case GGA:                
-      NMEA_read_and_save("GGA", save_buff);
-      break;
-    case RMC:
-      NMEA_read_and_save("RMC", save_buff);
-      break;
-    case GSV:
-      // NMEA_read_and_save("GSV", save_buff); // Delete GSV aquirement, too much content to be saved, 
-      break;
-    case GSA:
-      NMEA_read_and_save("GSA", save_buff);
-      break;
-    case VTG:
-      NMEA_read_and_save("VTG", save_buff);
-      break;
-    case GNS:
-      NMEA_read_and_save("GNS", save_buff);  // GNS sentence didn't show anything.
-      break;    
-
-    default:
-      break;
-  }
-
-  return  RET_OK;
-}
-
-/**
- * Read NMEA GSV sentence
- * GSV sentence gonna be 6 lines, that's too much content to save as other NMEA data.
- * save_buff should be 512 Bytes size at least. 
-*/
-bool Quectel_LTE::read_NMEA_GSV(char *data)
-{
-  char rxBuf[512] = {'\0'};
-  char *p;
-  uint16_t i = 0;
-
-  _AtSerial.CleanBuffer(rxBuf, sizeof(rxBuf));                                                                                                                                                                                                                  
-  _AtSerial.WriteCommand("AT+QGPSGNMEA=\"GSV\"\r\n");  // Send command
-  _AtSerial.ReadResponseUntil((char *)rxBuf, 512, STR_OK, CMD, 1000);  // Save response data 
-
-  if(NULL == (p = strstr(rxBuf, "+QGPSGNMEA:")))
-  {
-    return false;
-  }
-
-  while(NULL != (p = strstr(p, "+QGPSGNMEA:")))
-  {    
-    p += strlen("+QGPSGNMEA:");       
-    while((*(p) != '\n') && (*(p) != '\0')) {  // If receive "+QGPSGNMEA:", than keep saving the NMEA sentence 
-      data[i++] = *(p++);
-    }
-    // memcpy((uint8_t *)data, p, strlen(p));
-  }
+  if(!_AtSerial.WriteCommandAndWaitForResponse("AT+QGPS?\r\n", "+QGPS: 1\r\n\r\nOK", CMD, 500)) return RET_ERR;
   
-  // Serial.print("##DEBUG save_buff: ");
-  // Serial.println(save_buff);
   return  RET_OK;
+}
 
-} 
+bool Quectel_LTE::gpsOff(void)
+{  
+  if(_AtSerial.WriteCommandAndWaitForResponse("AT+QGPS?\r\n", "+QGPS: 0\r\n\r\nOK", CMD, 500))  return RET_OK;
+  else if(_AtSerial.WriteCommandAndWaitForResponse("AT+QGPS?\r\n", "+QGPS: 1\r\n\r\nOK", CMD, 500) && 
+          _AtSerial.WriteCommandAndWaitForResponse("AT+QGPSEND\r\n", "OK", CMD, 500)) return RET_OK;
+
+  return  RET_ERR;
+}
+
+/**
+ * Aquire GPS sentence GGA format
+ */
+bool Quectel_LTE::gpsLocRawData(char *rawData, uint16_t dataSize)
+{
+  _AtSerial.WriteCommand("AT+QGPSGNMEA=\"GGA\"\r\n");
+  if(!_AtSerial.ReadResponseUntil(rawData, dataSize, "\r\nOK", CMD, 500)) return RET_ERR;
+  debugPrintOut(rawData);
+  if(!strstr(rawData, "+QGPSGNMEA:")) return RET_ERR;
+
+  return RET_OK;
+}
 
 void Quectel_LTE::print(char data)
 {

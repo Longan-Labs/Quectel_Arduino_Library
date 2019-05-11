@@ -70,15 +70,7 @@ class Quectel_LTE
 		char _apnUser[32];
 		char _apnPasswd[32];
         char _operator[32];        
-        double _longitude;
-        double _latitude;        
-        double _ref_longitude;
-        double _ref_latitude;
-        char _str_longitude[16];
-        char _str_latitude[16];
-        char _North_or_South[2];
-        char _West_or_East[2];
-        
+
         AtSerial _AtSerial;
 
         Quectel_LTE();        
@@ -114,17 +106,9 @@ class Quectel_LTE
 /************************** MQTT **************************/        
         
 /************************** GNSS **************************/
-        bool open_GNSS(int mode);
-        bool close_GNSS(void);
-        bool open_GNSS(void);
-        void doubleToString(double _longitude, double _latitude);        
-        bool getCoordinate(void);            
-        bool dataFlowMode(void);
-        bool enable_NMEA_mode();        
-        bool disable_NMEA_mode();        
-        bool NMEA_read_and_save(const char *type, char *save_buff);        
-        bool read_NMEA(NMEA_type data_type, char *data);       
-        bool read_NMEA_GSV(char *save_buff);
+        bool gpsOn(void);
+        bool gpsOff(void);
+        bool gpsLocRawData(char *rawData, uint16_t dataSize);
 };
 
 class Quectel_MQTT : public Quectel_LTE
