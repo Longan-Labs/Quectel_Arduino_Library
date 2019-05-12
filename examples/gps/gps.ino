@@ -1,4 +1,4 @@
-#include "Quectel_LTE.h"
+#include <Quectel_LTE.h>
 #include <TinyGPS++.h>  // https://github.com/mikalhart/TinyGPSPlus
 
 // The TinyGPS++ object
@@ -95,4 +95,3 @@ void displayInfo()
 
   Serial.println();
 }
-
